@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+
+{% block title %}广告创意生成器 - 创意工厂{% endblock %}
+
+{% block content %}
+<div class="creative-generator-container">
+    <!-- 标题区域 -->
+    <div class="text-center mb-5">
+        <h1 class="display-4 fw-bold text-dark d-flex align-items-center justify-content-center mb-2">
+            <i class="bi bi-stars text-primary me-3"></i>
+            广告创意生成器
+        </h1>
+        <p class="lead text-muted">输入您的想法，选择创意元素，生成专业广告创意</p>
+        
+        <!-- 步骤指示器 -->
+        <div class="step-indicator mt-4">
+            <div class="step active">
+                <span class="step-number">1</span>
+                <span class="step-text">发散</span>
+            </div>
+            <div class="step">
+                <span class="step-number">2</span>
+                <span class="step-text">去重</span>
+            </div>
+            <div class="step">
+                <span class="step-number">3</span>
+                <span class="step-text">评分</span>
+            </div>
+            <div class="step">
+                <span class="step-number">4</span>
+                <span class="step-text">A/B测试</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-width-container mx-auto">
+        <!-- 热门话题获取配置区域 -->
+        <div class="card trends-config-card mb-4">
+            <div class="card-header bg-gradient text-white">
+                <h5 class="mb-0 d-flex align-items-center">
+                    <i class="bi bi-graph-up me-2"></i>
+                    获取热门话题
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row align-items-end">
+                    <div class="col-md-3">
+                        <label for="country-select" class="form-label fw-bold">
+                            🌏 选择国家/地区
+                        </label>
+                        <select class="form-select" id="country-select">
+                            <option value="VN" selected>🇻🇳 越南</option>
+                            <option value="TH">🇹🇭 泰国</option>
+                            <option value="SG">🇸🇬 新加坡</option>
+                            <option value="MY">🇲🇾 马来西亚</option>
+                            <option value="ID">🇮🇩 印尼</option>
+                            <option value="PH">🇵🇭 菲律宾</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="timerange-select" class="form-label fw-bold">
+                            ⏰ 时间范围
+                        </label>
+                        <select class="form-select" id="timerange-select">
+                            <option value="today">📅 今日</option>
+                            <option value="week" selected>📊 本周</option>
+                            <option value="month">📈 本月</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="topn-select" class="form-label fw-bold">
+                            🔢 获取数量
+                        </label>
+                        <select class="form-select" id="topn-select">
+                            <option value="5">Top 5</option>
+                            <option value="10" selected>Top 10</option>
+                            <option value="15">Top 15</option>
+                            <option value="20">Top 20</option>
+                            <option value="30">Top 30</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button class="btn btn-primary w-100" id="fetch-trends-btn">
+                            <i class="bi bi-download me-2"></i>
+                            获取热门话题
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 流行主题显示区域 -->
+                <div id="trending-topics" class="trending-topics mt-4" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <p class="mb-0 fw-bold text-primary">热门话题：</p>
+                        <small class="text-muted">点击任意话题快速填入</small>
+                    </div>
+                    <div id="topics-container" class="d-flex flex-wrap gap-2">
+                        <!-- 主题标签将由JS动态生成 -->
+                    </div>
+                    <div class="source-info mt-3 pt-2 border-top">
+                        <p class="text-muted small mb-0">
+                            <i class="bi bi-info-circle me-1"></i>
+                            数据来源说明将在这里显示
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 创意想法输入区域 -->
+        <div class="card idea-input-card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0 d-flex align-items-center">
+                    <i class="bi bi-lightbulb me-2"></i>
+                    创意想法
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <input type="text" class="form-control form-control-lg" 
+                           id="idea-input" placeholder="请输入您的广告创意想法，或从上方热门话题中选择..." 
+                           value="">
+                    <div class="form-text">
+                        <i class="bi bi-lightbulb-fill text-warning me-1"></i>
+                        提示：您可以输入自定义想法，也可以从上方获取的热门话题中选择
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 元素组合区域 -->
+        <div class="card elements-card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 d-flex align-items-center">
+                    <div class="gradient-icon me-2"></div>
+                    元素组合
+                </h5>
+                <span class="badge bg-primary fs-6">已选择 <span id="selected-elements-count">0</span> 个元素</span>
+            </div>
+            <div class="card-body">
+                <div id="dimensions-container">
+                    <!-- 维度选择项将在这里动态生成 -->
+                </div>
+                
+                <!-- 生成参数 -->
+                <div class="generation-params mt-4 p-3 bg-light rounded">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <label for="creative-count" class="form-label fw-bold">生成数量</label>
+                            <select class="form-select" id="creative-count" name="count">
+                                <option value="10">10个</option>
+                                <option value="20" selected>20个</option>
+                                <option value="50">50个</option>
+                                <option value="100">100个</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 text-md-end">
+                            <button type="button" class="btn btn-outline-secondary me-2" id="clear-all-btn">
+                                <i class="bi bi-arrow-clockwise me-1"></i>清空选择
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 统计信息 -->
+        <div class="card stats-card mb-4">
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-3">
+                        <div class="stat-item">
+                            <div class="stat-number text-primary" id="selected-dimensions-count">0</div>
+                            <div class="stat-label">已选维度</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="stat-item">
+                            <div class="stat-number text-info" id="selected-options-count">0</div>
+                            <div class="stat-label">已选选项</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="stat-item">
+                            <div class="stat-number text-success" id="generated-count">0</div>
+                            <div class="stat-label">生成创意</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="stat-item">
+                            <div class="stat-number text-warning" id="selected-creatives-count">0</div>
+                            <div class="stat-label">已保留</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 生成按钮 -->
+        <div class="text-center mb-4">
+            <button type="submit" class="btn btn-gradient btn-lg px-5 py-3" id="generate-btn" form="generation-form">
+                <span class="spinner-border spinner-border-sm me-2" id="loading-spinner" style="display: none;"></span>
+                <i class="bi bi-stars me-2"></i>
+                生成创意方案
+            </button>
+        </div>
+
+        <!-- 创意展示区域 -->
+        <div class="card creatives-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">💡 生成的创意</h5>
+                <div class="btn-group" id="batch-actions" style="display: none;">
+                    <button class="btn btn-success btn-sm" id="batch-select-btn">
+                        <i class="bi bi-check-all me-1"></i>全选
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" id="batch-deselect-btn">
+                        <i class="bi bi-x-circle me-1"></i>全不选
+                    </button>
+                    <button class="btn btn-primary btn-sm" id="save-selected-btn">
+                        <i class="bi bi-save me-1"></i>保存选中 (<span id="save-count">0</span>)
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- 加载状态 -->
+                <div class="generation-progress text-center py-5" id="generation-progress">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div class="h5">正在生成创意，请稍候...</div>
+                    <div class="text-muted">正在运用AI智能分析您的需求</div>
+                </div>
+                
+                <!-- 创意列表 -->
+                <div id="creatives-container">
+                    <div class="text-center py-5 text-muted">
+                        <div class="display-1">🎨</div>
+                        <h4 class="mt-3">准备开始创作</h4>
+                        <p>输入您的想法或选择创意元素，然后点击"生成创意方案"</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 隐藏的表单用于提交 -->
+    <form id="generation-form" style="display: none;"></form>
+</div>
+
+<!-- 创意详情模态框 -->
+<div class="modal fade" id="creativeDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">创意详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="creative-detail-content">
+                    <!-- 详情内容将由JavaScript填充 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" id="toggle-creative-selection">选择/取消</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/step1_generate.js') }}"></script>
+{% endblock %}

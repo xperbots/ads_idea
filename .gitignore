@@ -1,0 +1,25 @@
+# Environment variables and sensitive config
+.env
+*.log
+
+# Python cache and virtual environment
+__pycache__/
+*.pyc
+*.pyo
+venv/
+env/
+
+# Database files
+instance/
+*.db
+*.sqlite
+
+# IDE and system files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.tmp
+
+# Flask instance and logs
+flask.log

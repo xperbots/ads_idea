@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}创意工厂 - 首页{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="text-center mb-5">
+            <h1 class="display-4">🎨 创意工厂</h1>
+            <p class="lead">游戏广告创意生成与优化系统</p>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <h3>📈 四步产线流程</h3>
+                        <div class="mt-3">
+                            <div class="mb-2">1️⃣ 系统化发散 → 生成大量创意</div>
+                            <div class="mb-2">2️⃣ 规模化去重 → 筛除相似创意</div>
+                            <div class="mb-2">3️⃣ 规则化收敛 → 评分排序筛选</div>
+                            <div class="mb-2">4️⃣ 快速A/B → 测试验证效果</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <h3>🚀 快速开始</h3>
+                        <div class="mt-3">
+                            <a href="{{ url_for('step1_generate') }}" class="btn btn-primary btn-lg">
+                                开始创意生成
+                            </a>
+                        </div>
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                从第一步开始，系统化生成广告创意
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <h4>💡 系统特性</h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 text-center mb-3">
+                        <div class="h2">🎯</div>
+                        <h6>精准定向</h6>
+                        <small class="text-muted">基于游戏类型和用户画像</small>
+                    </div>
+                    <div class="col-md-3 text-center mb-3">
+                        <div class="h2">🔄</div>
+                        <h6>智能去重</h6>
+                        <small class="text-muted">自动识别相似创意</small>
+                    </div>
+                    <div class="col-md-3 text-center mb-3">
+                        <div class="h2">⭐</div>
+                        <h6>智能评分</h6>
+                        <small class="text-muted">多维度创意质量评估</small>
+                    </div>
+                    <div class="col-md-3 text-center mb-3">
+                        <div class="h2">📊</div>
+                        <h6>效果验证</h6>
+                        <small class="text-muted">A/B测试数据驱动</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
