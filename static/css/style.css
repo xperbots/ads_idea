@@ -163,6 +163,84 @@ body {
     box-shadow: 0 4px 15px rgba(251,146,60,0.3);
 }
 
+/* 真实数据话题标签样式 */
+.topic-badge.real-data {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    border-color: #10b981;
+}
+
+.topic-badge.real-data:hover {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    color: white;
+    border-color: #059669;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+}
+
+/* 错误状态的趋势卡片样式 */
+.trends-card.error {
+    background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
+    border: 1px solid #f87171;
+}
+
+.trends-card.success {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border: 1px solid #22c55e;
+}
+
+/* 错误消息显示样式 */
+.error-message {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 2rem;
+    text-align: left;
+    background: white;
+    border-radius: 12px;
+    border: 1px solid #fecaca;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.1);
+}
+
+.error-icon {
+    font-size: 2rem;
+    color: #ef4444;
+    flex-shrink: 0;
+}
+
+.error-details {
+    flex: 1;
+}
+
+.error-text {
+    font-size: 1rem;
+    color: #374151;
+    margin-bottom: 0.5rem;
+    line-height: 1.5;
+}
+
+.error-suggestion {
+    font-size: 0.9rem;
+    color: #6b7280;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background: #f9fafb;
+    border-radius: 6px;
+    border-left: 3px solid #fbbf24;
+}
+
+.error-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.error-actions .btn {
+    border-radius: 6px;
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+}
+
 /* 热门话题网格布局 */
 #topics-container {
     min-height: 60px;

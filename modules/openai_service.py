@@ -187,7 +187,9 @@ class OpenAIService:
     def translate_to_chinese(self, 
                            texts: Union[str, List[str]], 
                            model: str = 'gpt-5-nano',
-                           preserve_context: bool = True) -> Dict[str, Any]:
+                           preserve_context: bool = True,
+                           source_language: str = 'English',
+                           country_code: Optional[str] = None) -> Dict[str, Any]:
         """
         将文本翻译为中文
         
@@ -195,6 +197,8 @@ class OpenAIService:
             texts: 要翻译的文本或文本列表
             model: 使用的模型
             preserve_context: 是否保持语境(广告/营销相关)
+            source_language: 源语言（如：'Tiếng Việt', 'ภaษาไทย', 'English'等）
+            country_code: 国家代码，用于自动识别源语言
         
         Returns:
             Dict: 翻译结果
@@ -205,31 +209,32 @@ class OpenAIService:
         if not texts:
             return {'success': True, 'translations': []}
         
-        # 构建翻译提示
-        context_hint = ""
-        if preserve_context:
-            context_hint = """
-注意：这些是热门搜索话题，可能用于广告创意。请保持翻译的营销适用性。
-对于品牌名、专有名词保持原文，对于通用概念进行意译。"""
+        # 国家代码到本地语言名称的映射
+        local_language_map = {
+            'VN': 'Tiếng Việt',
+            'TH': 'ภาษาไทย', 
+            'SG': 'English',
+            'MY': 'English',
+            'ID': 'Bahasa Indonesia',
+            'PH': 'English'
+        }
+        
+        # 根据国家代码确定源语言
+        if country_code and country_code in local_language_map:
+            detected_language = local_language_map[country_code]
+        else:
+            detected_language = source_language
         
         texts_str = '\n'.join([f"{i+1}. {text}" for i, text in enumerate(texts)])
         
         messages = [
             {
                 "role": "system", 
-                "content": f"""你是专业的中文翻译专家。请将以下内容翻译为简洁、自然的中文。
-                
-要求：
-1. 保持原意准确
-2. 使用简洁的中文表达
-3. 适合中文用户理解
-4. 每行只返回翻译结果，不要编号{context_hint}
-
-返回格式：每行一个翻译结果，按原顺序排列。"""
+                "content": f"You are an expert linguist, specializing in translation from {detected_language} to 简体中文. translate directly without explanation"
             },
             {
                 "role": "user",
-                "content": f"请翻译以下内容为中文：\n\n{texts_str}"
+                "content": f"请翻译以下{len(texts)}个热门话题：\n\n{texts_str}"
             }
         ]
         
@@ -242,24 +247,48 @@ class OpenAIService:
         )
         
         if result['success']:
-            # 解析翻译结果
-            translations = result['content'].strip().split('\n')
-            translations = [t.strip() for t in translations if t.strip()]
+            # 解析翻译结果 - 更健壮的处理
+            raw_content = result['content'].strip()
+            translations = []
+            
+            # 按行分割并清理
+            lines = raw_content.split('\n')
+            for line in lines:
+                cleaned_line = line.strip()
+                # 移除可能的编号前缀（如"1. ", "- ", "• "等）
+                cleaned_line = cleaned_line.lstrip('0123456789.- •\t')
+                if cleaned_line:
+                    translations.append(cleaned_line)
             
             # 确保翻译数量匹配
             if len(translations) != len(texts):
-                logger.warning(f"翻译数量不匹配: 原文{len(texts)}个，译文{len(translations)}个")
-                # 补齐或截取
-                while len(translations) < len(texts):
-                    translations.append(texts[len(translations)])
-                translations = translations[:len(texts)]
+                logger.warning(f"批量翻译数量不匹配: 原文{len(texts)}个，译文{len(translations)}个")
+                logger.debug(f"原文: {texts}")
+                logger.debug(f"译文: {translations}")
+                
+                # 智能修复：补齐或截取
+                if len(translations) < len(texts):
+                    # 补齐缺失的翻译（使用原文）
+                    missing_count = len(texts) - len(translations)
+                    logger.warning(f"补齐{missing_count}个缺失的翻译")
+                    for i in range(missing_count):
+                        idx = len(translations) + i
+                        if idx < len(texts):
+                            translations.append(texts[idx])
+                else:
+                    # 截取多余的翻译
+                    translations = translations[:len(texts)]
+                    logger.warning(f"截取到{len(texts)}个翻译结果")
+            
+            logger.info(f"✅ 批量翻译成功: {len(texts)}个话题 -> {len(translations)}个中文结果")
             
             return {
                 'success': True,
                 'translations': translations,
                 'original_texts': texts,
                 'model_used': result['model_used'],
-                'usage': result['usage']
+                'usage': result['usage'],
+                'batch_size': len(texts)
             }
         else:
             return {

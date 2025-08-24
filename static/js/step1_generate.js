@@ -70,34 +70,39 @@ async function fetchTrendingTopics() {
             top_n: topN
         });
         
-        if (response.success || response.fallback) {
+        if (response.success) {
             const topics = response.data || [];
             displayTrendingTopics(topics, {
                 country: countryName,
                 timeRange: timeRangeName,
-                isFallback: response.fallback,
-                actualCount: topics.length
+                isFallback: false,
+                actualCount: topics.length,
+                dataSource: response.data_source
             });
             
-            if (response.fallback) {
-                showMessage(`⚠️ ${response.message}`, 'warning');
-            } else {
-                showMessage(`🎉 成功获取${countryName}${timeRangeName}热门话题！`, 'success');
-            }
+            showMessage(`🎉 ${response.message}`, 'success');
         } else {
-            showMessage('获取热门话题失败: ' + response.message, 'danger');
+            // 处理错误情况 - 不显示任何模拟数据
+            const errorType = response.error_type || 'unknown';
+            displayTrendingError(response.message, {
+                country: countryName,
+                timeRange: timeRangeName,
+                errorType: errorType,
+                suggestion: response.suggestion
+            });
+            
+            showMessage(`❌ ${response.message}`, 'danger');
         }
     } catch (error) {
         console.error('Fetch trending topics error:', error);
         showMessage('获取流行主题失败: ' + error.message, 'danger');
         
-        // 显示备用数据
-        const fallbackTopics = getFallbackTopics(countryCode, topN);
-        displayTrendingTopics(fallbackTopics, {
+        // 显示网络错误信息，不显示模拟数据
+        displayTrendingError('网络连接错误，无法获取热门话题数据', {
             country: countryName,
             timeRange: timeRangeName,
-            isFallback: true,
-            actualCount: fallbackTopics.length
+            errorType: 'network_error',
+            suggestion: '请检查网络连接后重试'
         });
     } finally {
         btn.disabled = false;
@@ -120,7 +125,7 @@ function getFallbackTopics(countryCode, topN) {
     return topics.slice(0, topN);
 }
 
-// 增强的显示流行主题功能
+// 显示真实热门话题
 function displayTrendingTopics(topics, metadata = {}) {
     const container = document.getElementById('topics-container');
     const topicsDiv = document.getElementById('trending-topics');
@@ -128,16 +133,13 @@ function displayTrendingTopics(topics, metadata = {}) {
     const sourceInfoElement = topicsDiv.querySelector('.source-info p');
     
     // 更新头部信息
-    const {country, timeRange, isFallback, actualCount} = metadata;
-    let headerText = `热门话题：`;
+    const {country, timeRange, actualCount, dataSource} = metadata;
+    let headerText = `✅ 热门话题：`;
     if (country && timeRange) {
         headerText += `${country} ${timeRange}`;
     }
-    if (isFallback) {
-        headerText += ` <span class="text-warning">(备用数据)</span>`;
-    }
     if (actualCount) {
-        headerText += ` <span class="badge bg-primary ms-2">${actualCount}个</span>`;
+        headerText += ` <span class="badge bg-success ms-2">${actualCount}个</span>`;
     }
     
     if (headerElement) {
@@ -147,10 +149,10 @@ function displayTrendingTopics(topics, metadata = {}) {
     // 渲染话题标签
     if (topics && topics.length > 0) {
         container.innerHTML = topics.map((topic, index) => `
-            <span class="topic-badge ${isFallback ? 'fallback' : ''}" 
+            <span class="topic-badge real-data" 
                   onclick="selectTopic('${topic.replace(/'/g, "\\'")}', '${country || ''}')"
-                  title="${isFallback ? '备用数据 - 点击使用' : '来自Google Trends - 点击使用'}">
-                ${getTopicIcon(index, isFallback)} ${topic}
+                  title="来自Google Trends的实时数据 - 点击使用">
+                ${getRealTopicIcon(index)} ${topic}
             </span>
         `).join('');
     } else {
@@ -159,19 +161,20 @@ function displayTrendingTopics(topics, metadata = {}) {
     
     // 更新数据来源说明
     if (sourceInfoElement) {
+        const timestamp = new Date().toLocaleString('zh-CN');
         sourceInfoElement.innerHTML = `
-            <i class="bi bi-info-circle me-1"></i>
-            ${isFallback ? 
-                '<span class="text-warning">⚠️ 当前显示备用数据</span> | 请检查网络连接后重试' :
-                '<span class="text-success">🔍 来自 Google Trends</span> | 📊 实时数据 | ' + new Date().toLocaleString('zh-CN')
-            }
+            <i class="bi bi-check-circle text-success me-1"></i>
+            <span class="text-success">🔍 来自 Google Trends</span> | 
+            📊 实时数据 | 
+            🕒 ${timestamp}
         `;
     }
     
     // 显示热门话题区域
     topicsDiv.style.display = 'block';
     
-    // 添加淡入动画
+    // 添加成功动画
+    topicsDiv.className = 'trends-card success';
     topicsDiv.style.opacity = '0';
     topicsDiv.style.transform = 'translateY(10px)';
     setTimeout(() => {
@@ -181,12 +184,125 @@ function displayTrendingTopics(topics, metadata = {}) {
     }, 50);
 }
 
-// 获取话题图标
-function getTopicIcon(index, isFallback) {
-    if (isFallback) {
-        return '💡'; // 备用数据图标
+// 显示错误信息（不显示模拟数据）
+function displayTrendingError(errorMessage, metadata = {}) {
+    const container = document.getElementById('topics-container');
+    const topicsDiv = document.getElementById('trending-topics');
+    const headerElement = topicsDiv.querySelector('p.fw-bold');
+    const sourceInfoElement = topicsDiv.querySelector('.source-info p');
+    
+    // 更新头部信息
+    const {country, timeRange, errorType, suggestion} = metadata;
+    let headerText = `❌ 无法获取热门话题`;
+    if (country && timeRange) {
+        headerText += `：${country} ${timeRange}`;
     }
-    return index % 2 === 0 ? '🔍' : '📱'; // 交替显示图标
+    
+    if (headerElement) {
+        headerElement.innerHTML = headerText;
+    }
+    
+    // 显示错误信息和建议
+    const errorTypeText = {
+        'data_unavailable': '📭 数据暂时不可用',
+        'network_error': '🌐 网络连接错误', 
+        'system_error': '⚙️ 系统错误',
+        'unknown': '❓ 未知错误'
+    };
+    
+    container.innerHTML = `
+        <div class="error-message">
+            <div class="error-icon">${errorTypeText[errorType] || errorTypeText['unknown']}</div>
+            <div class="error-details">
+                <p class="error-text">${errorMessage}</p>
+                ${suggestion ? `<p class="error-suggestion"><i class="bi bi-lightbulb"></i> ${suggestion}</p>` : ''}
+                <div class="error-actions mt-3">
+                    <button class="btn btn-primary btn-sm" onclick="document.getElementById('fetch-trends-btn').click()">
+                        <i class="bi bi-arrow-clockwise me-1"></i>重试
+                    </button>
+                    <button class="btn btn-secondary btn-sm ms-2" onclick="showTrendingHelp()">
+                        <i class="bi bi-question-circle me-1"></i>帮助
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 更新数据来源说明
+    if (sourceInfoElement) {
+        const timestamp = new Date().toLocaleString('zh-CN');
+        sourceInfoElement.innerHTML = `
+            <i class="bi bi-exclamation-triangle text-warning me-1"></i>
+            <span class="text-warning">数据获取失败</span> | 
+            🕒 ${timestamp} |
+            <span class="text-muted">请稍后重试</span>
+        `;
+    }
+    
+    // 显示错误区域
+    topicsDiv.style.display = 'block';
+    topicsDiv.className = 'trends-card error';
+    
+    // 添加错误动画
+    topicsDiv.style.opacity = '0';
+    topicsDiv.style.transform = 'translateY(10px)';
+    setTimeout(() => {
+        topicsDiv.style.transition = 'all 0.5s ease';
+        topicsDiv.style.opacity = '1';
+        topicsDiv.style.transform = 'translateY(0)';
+    }, 50);
+}
+
+// 获取真实话题图标
+function getRealTopicIcon(index) {
+    const icons = ['🔥', '📈', '🌟', '💫', '⚡', '🎯', '📊', '🔍'];
+    return icons[index % icons.length];
+}
+
+// 显示帮助信息
+function showTrendingHelp() {
+    const helpModal = new bootstrap.Modal(document.getElementById('helpModal') || createHelpModal());
+    helpModal.show();
+}
+
+// 创建帮助模态框
+function createHelpModal() {
+    const modalHtml = `
+        <div class="modal fade" id="helpModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">热门话题获取帮助</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <h6>📊 数据来源</h6>
+                        <p>热门话题数据来自 Google Trends API，提供各国实时搜索趋势。</p>
+                        
+                        <h6>🔧 常见问题</h6>
+                        <ul>
+                            <li><strong>数据不可用</strong>：可能该地区搜索数据不足，请尝试其他国家</li>
+                            <li><strong>网络错误</strong>：检查网络连接，稍后重试</li>
+                            <li><strong>加载时间长</strong>：Google Trends API响应较慢，请耐心等待</li>
+                        </ul>
+                        
+                        <h6>💡 使用建议</h6>
+                        <ul>
+                            <li>选择不同的国家和时间范围获取更多话题</li>
+                            <li>点击话题标签可直接添加到创意输入</li>
+                            <li>如遇错误可点击重试按钮</li>
+                        </ul>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">了解了</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    return document.getElementById('helpModal');
 }
 
 // 选择主题
