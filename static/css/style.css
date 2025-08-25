@@ -399,6 +399,43 @@ body {
     color: white;
 }
 
+/* 热门话题按钮状态 */
+#fetch-trends-btn {
+    min-width: 160px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+#fetch-trends-btn:disabled {
+    cursor: not-allowed;
+    opacity: 1;
+}
+
+#fetch-trends-btn.btn-warning {
+    background: linear-gradient(135deg, #ffc107 0%, #ff8c00 100%);
+    border-color: #ffc107;
+    color: #000;
+    font-weight: 600;
+}
+
+#fetch-trends-btn.btn-warning:disabled {
+    background: linear-gradient(135deg, #ffc107 0%, #ff8c00 100%);
+    border-color: #ffc107;
+    color: #000;
+    opacity: 0.8;
+}
+
+/* 倒计时动画效果 */
+.countdown-pulse {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+    100% { transform: scale(1); }
+}
+
 /* 创意卡片样式 */
 .creative-card {
     border: 1px solid #e2e8f0;

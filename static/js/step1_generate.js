@@ -6,11 +6,14 @@ let currentCreativeIndex = -1;
 let collapsedDimensions = new Set();
 let editingElement = null;
 let customInputs = {};
+let trendsCountdownTimer = null;
+let trendsCountdownSeconds = 0;
 
 document.addEventListener('DOMContentLoaded', function() {
     // 初始化
     loadDimensionsConfig();
     loadCustomInputs();
+    checkTrendsCountdownState(); // 检查并恢复倒计时状态
     updateStats();
     
     // 绑定基础事件
@@ -29,6 +32,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (modal) {
         document.getElementById('toggle-creative-selection').addEventListener('click', toggleCurrentCreativeSelection);
     }
+    
+    // 页面卸载时保存倒计时状态
+    window.addEventListener('beforeunload', saveTrendsCountdownState);
 });
 
 // 加载维度配置
@@ -46,8 +52,111 @@ async function loadDimensionsConfig() {
     }
 }
 
+// 检查是否在冷却期间
+function isTrendsOnCooldown() {
+    return trendsCountdownSeconds > 0;
+}
+
+// 保存倒计时状态到本地存储
+function saveTrendsCountdownState() {
+    try {
+        const state = {
+            endTime: trendsCountdownSeconds > 0 ? Date.now() + (trendsCountdownSeconds * 1000) : null,
+            lastRequest: Date.now()
+        };
+        localStorage.setItem('trends-countdown-state', JSON.stringify(state));
+    } catch (error) {
+        console.error('Failed to save countdown state:', error);
+    }
+}
+
+// 检查并恢复倒计时状态
+function checkTrendsCountdownState() {
+    try {
+        const saved = localStorage.getItem('trends-countdown-state');
+        if (!saved) return;
+        
+        const state = JSON.parse(saved);
+        const now = Date.now();
+        
+        if (state.endTime && state.endTime > now) {
+            // 倒计时未结束，恢复倒计时
+            const remainingSeconds = Math.ceil((state.endTime - now) / 1000);
+            startTrendsCountdown(remainingSeconds);
+        } else if (state.lastRequest && (now - state.lastRequest) < 60000) {
+            // 最后一次请求在60秒内，继续倒计时
+            const remainingSeconds = 60 - Math.floor((now - state.lastRequest) / 1000);
+            if (remainingSeconds > 0) {
+                startTrendsCountdown(remainingSeconds);
+            }
+        }
+    } catch (error) {
+        console.error('Failed to load countdown state:', error);
+        // 清除损坏的数据
+        localStorage.removeItem('trends-countdown-state');
+    }
+}
+
+// 开始倒计时
+function startTrendsCountdown(seconds = 60) {
+    trendsCountdownSeconds = seconds;
+    const btn = document.getElementById('fetch-trends-btn');
+    
+    // 清除之前的计时器
+    if (trendsCountdownTimer) {
+        clearInterval(trendsCountdownTimer);
+    }
+    
+    // 保存状态
+    saveTrendsCountdownState();
+    
+    // 开始倒计时
+    trendsCountdownTimer = setInterval(() => {
+        if (trendsCountdownSeconds <= 0) {
+            // 倒计时结束
+            clearInterval(trendsCountdownTimer);
+            trendsCountdownTimer = null;
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-search me-2"></i>获取热门话题';
+            btn.className = 'btn btn-primary';
+            
+            // 清除本地存储状态
+            localStorage.removeItem('trends-countdown-state');
+            
+            // 提示用户可以再次请求
+            showMessage('✅ 冷却时间结束，现在可以再次获取热门话题', 'success');
+            return;
+        }
+        
+        // 更新按钮显示
+        const minutes = Math.floor(trendsCountdownSeconds / 60);
+        const seconds = trendsCountdownSeconds % 60;
+        const timeDisplay = minutes > 0 ? `${minutes}:${seconds.toString().padStart(2, '0')}` : `${seconds}s`;
+        
+        btn.disabled = true;
+        btn.innerHTML = `<i class="bi bi-clock me-2"></i>请等待 ${timeDisplay}`;
+        btn.className = 'btn btn-warning countdown-pulse';
+        
+        trendsCountdownSeconds--;
+        
+        // 每5秒保存一次状态
+        if (trendsCountdownSeconds % 5 === 0) {
+            saveTrendsCountdownState();
+        }
+    }, 1000);
+}
+
 // 增强的流行主题获取功能
 async function fetchTrendingTopics() {
+    // 检查是否在冷却期
+    if (isTrendsOnCooldown()) {
+        const minutes = Math.floor(trendsCountdownSeconds / 60);
+        const seconds = trendsCountdownSeconds % 60;
+        const timeDisplay = minutes > 0 ? `${minutes}分${seconds}秒` : `${seconds}秒`;
+        showMessage(`🕐 请等待 ${timeDisplay} 后再次获取热门话题（防止API限制）`, 'info');
+        return;
+    }
+    
     const btn = document.getElementById('fetch-trends-btn');
     const originalText = btn.innerHTML;
     
@@ -62,6 +171,7 @@ async function fetchTrendingTopics() {
     
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>获取中...';
+    btn.className = 'btn btn-primary';
     
     try {
         const response = await makeRequest('/api/trending-topics', 'POST', {
@@ -81,6 +191,10 @@ async function fetchTrendingTopics() {
             });
             
             showMessage(`🎉 ${response.message}`, 'success');
+            
+            // 成功后开始60秒倒计时
+            startTrendsCountdown(60);
+            showMessage('🕐 为保护API稳定，下次请求需等待60秒', 'info');
         } else {
             // 处理错误情况 - 不显示任何模拟数据
             const errorType = response.error_type || 'unknown';
@@ -92,6 +206,9 @@ async function fetchTrendingTopics() {
             });
             
             showMessage(`❌ ${response.message}`, 'danger');
+            
+            // 即使失败也要开始倒计时，防止频繁重试导致被封IP
+            startTrendsCountdown(60);
         }
     } catch (error) {
         console.error('Fetch trending topics error:', error);
@@ -104,9 +221,16 @@ async function fetchTrendingTopics() {
             errorType: 'network_error',
             suggestion: '请检查网络连接后重试'
         });
+        
+        // 网络错误也要倒计时，避免频繁请求
+        startTrendsCountdown(60);
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
+        // 注意：这里不再直接恢复按钮，因为要等倒计时结束
+        if (!isTrendsOnCooldown()) {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+            btn.className = 'btn btn-primary';
+        }
     }
 }
 
@@ -217,7 +341,7 @@ function displayTrendingError(errorMessage, metadata = {}) {
                 <p class="error-text">${errorMessage}</p>
                 ${suggestion ? `<p class="error-suggestion"><i class="bi bi-lightbulb"></i> ${suggestion}</p>` : ''}
                 <div class="error-actions mt-3">
-                    <button class="btn btn-primary btn-sm" onclick="document.getElementById('fetch-trends-btn').click()">
+                    <button class="btn btn-primary btn-sm" onclick="retryFetchTrendingTopics()">
                         <i class="bi bi-arrow-clockwise me-1"></i>重试
                     </button>
                     <button class="btn btn-secondary btn-sm ms-2" onclick="showTrendingHelp()">
@@ -253,6 +377,18 @@ function displayTrendingError(errorMessage, metadata = {}) {
     }, 50);
 }
 
+// 重试获取热门话题（检查冷却期）
+function retryFetchTrendingTopics() {
+    if (isTrendsOnCooldown()) {
+        const minutes = Math.floor(trendsCountdownSeconds / 60);
+        const seconds = trendsCountdownSeconds % 60;
+        const timeDisplay = minutes > 0 ? `${minutes}分${seconds}秒` : `${seconds}秒`;
+        showMessage(`🕒 请等待 ${timeDisplay} 后再次尝试（pytrends API限制）`, 'warning');
+        return;
+    }
+    fetchTrendingTopics();
+}
+
 // 获取真实话题图标
 function getRealTopicIcon(index) {
     const icons = ['🔥', '📈', '🌟', '💫', '⚡', '🎯', '📊', '🔍'];
@@ -284,13 +420,15 @@ function createHelpModal() {
                             <li><strong>数据不可用</strong>：可能该地区搜索数据不足，请尝试其他国家</li>
                             <li><strong>网络错误</strong>：检查网络连接，稍后重试</li>
                             <li><strong>加载时间长</strong>：Google Trends API响应较慢，请耐心等待</li>
+                            <li><strong>按钮不可点击</strong>：为防止API限制，每次请求后需等待60秒</li>
                         </ul>
                         
                         <h6>💡 使用建议</h6>
                         <ul>
                             <li>选择不同的国家和时间范围获取更多话题</li>
                             <li>点击话题标签可直接添加到创意输入</li>
-                            <li>如遇错误可点击重试按钮</li>
+                            <li>如遇错误可点击重试按钮，但需等待冷却时间</li>
+                            <li><strong>重要</strong>：为避免被Google封禁，请耐心等待60秒间隔</li>
                         </ul>
                     </div>
                     <div class="modal-footer">
