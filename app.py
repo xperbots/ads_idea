@@ -68,16 +68,45 @@ def api_get_dimensions():
 
 @app.route('/api/generate-creatives', methods=['POST'])
 def api_generate_creatives():
-    """生成创意"""
+    """生成创意 - 简化版本"""
     try:
         data = request.get_json()
-        selected_dimensions = data.get('selected_dimensions', {})
-        count = data.get('count', 20)
+        game_background = data.get('game_background', '').strip()  # 游戏背景介绍
+        count = data.get('count', 5)
+        ai_model = data.get('ai_model', 'gpt-5-nano').strip()  # AI模型选择
         
-        if not selected_dimensions:
-            return jsonify({'success': False, 'message': '请选择至少一个维度的选项'}), 400
+        # 验证输入：需要游戏背景介绍
+        if not game_background:
+            return jsonify({
+                'success': False, 
+                'message': '请输入游戏背景介绍'
+            }), 400
         
-        creatives = generator.generate_creatives(selected_dimensions, count)
+        # 验证AI模型选择
+        valid_models = ['gpt-5-nano', 'gpt-5-mini']
+        if ai_model not in valid_models:
+            ai_model = 'gpt-5-nano'  # 默认使用便宜模型
+            
+        # 验证生成数量限制
+        if ai_model == 'gpt-5-mini':
+            # GPT-5-mini限制1-3个
+            if count not in [1, 2, 3]:
+                count = 2  # 默认2个
+        elif ai_model == 'gpt-5-nano':
+            # GPT-5-nano限制1,3,5或10个
+            if count not in [1, 3, 5, 10]:
+                count = 5  # 默认5个
+        
+        # 使用固定模板生成创意
+        template = f"请生成{count}组在越南落地的{game_background}静态图片广告创意。每组都包含：核心概念、建议图片的画面、镜头/光线处理、色彩与道具等细节，便于AI生成图片、关键注意事项（统一强调：画面中严禁出现任何文字、Logo、字幕与标识）"
+        
+        # 调用简化的创意生成
+        creatives = generator.generate_simple_creatives(
+            template=template,
+            count=count,
+            game_background=game_background,
+            ai_model=ai_model
+        )
         return jsonify({'success': True, 'data': creatives})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500

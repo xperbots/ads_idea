@@ -107,57 +107,63 @@
             </div>
         </div>
 
-        <!-- 创意想法输入区域 -->
+        <!-- 游戏背景介绍输入区域 -->
         <div class="card idea-input-card mb-4">
             <div class="card-header bg-primary text-white">
                 <h5 class="mb-0 d-flex align-items-center">
-                    <i class="bi bi-lightbulb me-2"></i>
-                    创意想法
+                    <i class="bi bi-controller me-2"></i>
+                    游戏背景介绍
                 </h5>
             </div>
             <div class="card-body">
                 <div class="mb-3">
                     <input type="text" class="form-control form-control-lg" 
-                           id="idea-input" placeholder="请输入您的广告创意想法，或从上方热门话题中选择..." 
+                           id="game-background-input" placeholder="请输入您的游戏背景介绍，例如：一个三国杀类似的卡牌游戏" 
                            value="">
                     <div class="form-text">
-                        <i class="bi bi-lightbulb-fill text-warning me-1"></i>
-                        提示：您可以输入自定义想法，也可以从上方获取的热门话题中选择
+                        <i class="bi bi-controller text-info me-1"></i>
+                        提示：简要描述您的游戏类型、背景设定或核心玩法
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- 元素组合区域 -->
+        <!-- 生成设置区域 -->
         <div class="card elements-card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="card-header">
                 <h5 class="mb-0 d-flex align-items-center">
-                    <div class="gradient-icon me-2"></div>
-                    元素组合
+                    <i class="bi bi-gear me-2"></i>
+                    生成设置
                 </h5>
-                <span class="badge bg-primary fs-6">已选择 <span id="selected-elements-count">0</span> 个元素</span>
             </div>
             <div class="card-body">
-                <div id="dimensions-container">
-                    <!-- 维度选择项将在这里动态生成 -->
-                </div>
-                
                 <!-- 生成参数 -->
-                <div class="generation-params mt-4 p-3 bg-light rounded">
+                <div class="generation-params p-3 bg-light rounded">
                     <div class="row align-items-center">
                         <div class="col-md-6">
                             <label for="creative-count" class="form-label fw-bold">生成数量</label>
                             <select class="form-select" id="creative-count" name="count">
-                                <option value="10">10个</option>
-                                <option value="20" selected>20个</option>
-                                <option value="50">50个</option>
-                                <option value="100">100个</option>
+                                <!-- 选项将根据选择的模型动态生成 -->
                             </select>
                         </div>
-                        <div class="col-md-6 text-md-end">
-                            <button type="button" class="btn btn-outline-secondary me-2" id="clear-all-btn">
-                                <i class="bi bi-arrow-clockwise me-1"></i>清空选择
-                            </button>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">AI模型选择</label>
+                            <div class="btn-group w-100" role="group" id="model-selection">
+                                <input type="radio" class="btn-check" name="ai-model" id="model-nano" value="gpt-5-nano" checked>
+                                <label class="btn btn-outline-success" for="model-nano" title="快速生成，成本更低">
+                                    <i class="bi bi-lightning-charge me-1"></i>便宜
+                                    <small class="d-block text-muted">快速版</small>
+                                </label>
+                                
+                                <input type="radio" class="btn-check" name="ai-model" id="model-mini" value="gpt-5-mini">
+                                <label class="btn btn-outline-warning" for="model-mini" title="高质量生成，创意更佳">
+                                    <i class="bi bi-gem me-1"></i>昂贵
+                                    <small class="d-block text-muted">高质版</small>
+                                </label>
+                            </div>
+                            <small class="text-muted d-block mt-1 text-center" id="cost-hint">
+                                <!-- 成本提示将动态更新 -->
+                            </small>
                         </div>
                     </div>
                 </div>
@@ -168,25 +174,13 @@
         <div class="card stats-card mb-4">
             <div class="card-body">
                 <div class="row text-center">
-                    <div class="col-3">
-                        <div class="stat-item">
-                            <div class="stat-number text-primary" id="selected-dimensions-count">0</div>
-                            <div class="stat-label">已选维度</div>
-                        </div>
-                    </div>
-                    <div class="col-3">
-                        <div class="stat-item">
-                            <div class="stat-number text-info" id="selected-options-count">0</div>
-                            <div class="stat-label">已选选项</div>
-                        </div>
-                    </div>
-                    <div class="col-3">
+                    <div class="col-6">
                         <div class="stat-item">
                             <div class="stat-number text-success" id="generated-count">0</div>
                             <div class="stat-label">生成创意</div>
                         </div>
                     </div>
-                    <div class="col-3">
+                    <div class="col-6">
                         <div class="stat-item">
                             <div class="stat-number text-warning" id="selected-creatives-count">0</div>
                             <div class="stat-label">已保留</div>

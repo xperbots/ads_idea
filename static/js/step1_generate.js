@@ -10,22 +10,34 @@ let trendsCountdownTimer = null;
 let trendsCountdownSeconds = 0;
 
 document.addEventListener('DOMContentLoaded', function() {
-    // 初始化
-    loadDimensionsConfig();
-    loadCustomInputs();
+    // 简化的初始化
     checkTrendsCountdownState(); // 检查并恢复倒计时状态
     updateStats();
+    updateCreativeCountOptions(); // 初始化数量选项
+    
+    // 监听模型选择变化
+    document.querySelectorAll('input[name="ai-model"]').forEach(radio => {
+        radio.addEventListener('change', updateCreativeCountOptions);
+    });
+    
+    // 监听数量选择变化以更新成本
+    const countSelect = document.getElementById('creative-count');
+    if (countSelect) {
+        countSelect.addEventListener('change', function() {
+            const selectedModel = document.querySelector('input[name="ai-model"]:checked')?.value || 'gpt-5-nano';
+            updateCostHint(selectedModel, parseInt(this.value));
+        });
+    }
     
     // 绑定基础事件
     document.getElementById('generate-btn').addEventListener('click', handleGenerateCreatives);
-    document.getElementById('clear-all-btn').addEventListener('click', clearAllSelections);
     document.getElementById('batch-select-btn').addEventListener('click', selectAllCreatives);
     document.getElementById('batch-deselect-btn').addEventListener('click', deselectAllCreatives);
     document.getElementById('save-selected-btn').addEventListener('click', saveSelectedCreatives);
     
     // 绑定新功能事件
     document.getElementById('fetch-trends-btn').addEventListener('click', fetchTrendingTopics);
-    document.getElementById('idea-input').addEventListener('input', updateIdeaInput);
+    document.getElementById('game-background-input').addEventListener('input', updateIdeaInput);
     
     // 绑定模态框事件
     const modal = document.getElementById('creativeDetailModal');
@@ -445,7 +457,7 @@ function createHelpModal() {
 
 // 选择主题
 function selectTopic(topic, country = '') {
-    const input = document.getElementById('idea-input');
+    const input = document.getElementById('game-background-input');
     input.value = topic;
     input.focus();
     updateIdeaInput();
@@ -470,7 +482,7 @@ function selectTopic(topic, country = '') {
 // 更新创意输入
 function updateIdeaInput() {
     // 可以在这里添加实时验证或建议功能
-    const input = document.getElementById('idea-input');
+    const input = document.getElementById('game-background-input');
     if (input.value.length > 100) {
         input.style.borderColor = '#ffc107';
     } else {
@@ -670,20 +682,15 @@ function updateDimensionStats(dimensionName) {
 
 // 增强的统计信息更新
 function updateStats() {
-    const checkboxes = document.querySelectorAll('.dimension-option:checked');
-    const selectedDimensions = new Set();
-    
-    checkboxes.forEach(checkbox => {
-        selectedDimensions.add(checkbox.dataset.dimension);
-    });
-    
-    // 更新统计数字
-    document.getElementById('selected-dimensions-count').textContent = selectedDimensions.size;
-    document.getElementById('selected-options-count').textContent = checkboxes.length;
-    document.getElementById('selected-elements-count').textContent = checkboxes.length;
+    // 简化的统计更新
     document.getElementById('generated-count').textContent = generatedCreatives.length;
     document.getElementById('selected-creatives-count').textContent = selectedCreatives.size;
-    document.getElementById('save-count').textContent = selectedCreatives.size;
+    
+    // 更新保存按钮计数
+    const saveCountElement = document.getElementById('save-count');
+    if (saveCountElement) {
+        saveCountElement.textContent = selectedCreatives.size;
+    }
     
     // 显示/隐藏批量操作按钮
     const batchActions = document.getElementById('batch-actions');
@@ -696,27 +703,19 @@ function updateStats() {
     }
 }
 
-// 增强的处理生成创意请求
+// 简化的处理生成创意请求
 async function handleGenerateCreatives(event) {
     event.preventDefault();
     
-    // 获取创意想法
-    const ideaInput = document.getElementById('idea-input').value.trim();
+    // 获取游戏背景输入
+    const gameBackgroundInput = document.getElementById('game-background-input').value.trim();
     
-    // 获取选中的维度和选项
-    const selectedDimensions = getSelectedDimensions();
-    
-    // 获取自定义输入内容
-    const customInputsData = {};
-    for (const [dimensionName, content] of Object.entries(customInputs)) {
-        if (content && content.trim()) {
-            customInputsData[dimensionName] = content.trim();
-        }
-    }
+    // 获取AI模型选择
+    const aiModel = document.querySelector('input[name="ai-model"]:checked')?.value || 'gpt-5-nano';
     
     // 验证输入
-    if (!ideaInput && Object.keys(selectedDimensions).length === 0 && Object.keys(customInputsData).length === 0) {
-        showMessage('请输入创意想法、选择元素或填写自定义内容', 'warning');
+    if (!gameBackgroundInput) {
+        showMessage('请输入游戏背景介绍', 'warning');
         return;
     }
     
@@ -729,15 +728,15 @@ async function handleGenerateCreatives(event) {
     
     try {
         const requestData = {
-            idea: ideaInput,
-            selected_dimensions: selectedDimensions,
-            custom_inputs: customInputsData,
-            count: count
+            game_background: gameBackgroundInput,
+            count: count,
+            ai_model: aiModel
         };
         
         const response = await makeRequest('/api/generate-creatives', 'POST', requestData);
         
         if (response.success) {
+            
             generatedCreatives = response.data;
             selectedCreatives.clear();
             renderCreatives();
@@ -789,40 +788,45 @@ function renderCreatives() {
         return;
     }
     
-    const creativesHtml = generatedCreatives.map((creative, index) => `
+    const creativesHtml = generatedCreatives.map((creative, index) => {
+        return `
         <div class="creative-card ${selectedCreatives.has(index) ? 'selected' : ''}" 
              data-index="${index}">
             <div class="d-flex justify-content-between align-items-start">
                 <div class="flex-grow-1">
                     <div class="d-flex align-items-center mb-3">
-                        <span class="badge bg-primary me-2">#${creative.index}</span>
-                        <h5 class="creative-title mb-0">${creative.title}</h5>
+                        <span class="badge bg-primary me-2">#${creative.index || index + 1}</span>
+                        <h5 class="creative-title mb-0">${creative.core_concept || creative.title || '无标题'}</h5>
                     </div>
-                    <div class="creative-content mb-3">${creative.content}</div>
+                    <div class="creative-content mb-3">
+                        <div class="mb-2"><strong>画面描述:</strong> ${creative.scene_description || creative.content || '暂无描述'}</div>
+                        ${creative.camera_lighting ? `<div class="mb-2"><strong>镜头/光线:</strong> ${creative.camera_lighting}</div>` : ''}
+                        ${creative.color_props ? `<div class="mb-2"><strong>色彩道具:</strong> ${creative.color_props}</div>` : ''}
+                    </div>
                     <div class="row creative-meta">
                         <div class="col-md-6 mb-2">
                             <div class="d-flex flex-wrap">
                                 <small class="text-muted me-2">选用维度:</small>
-                                ${creative.chosen_dimensions.map(dim => 
+                                ${(creative.chosen_dimensions || []).map(dim => 
                                     `<span class="badge bg-light text-dark me-1">${dim}</span>`
-                                ).join('')}
+                                ).join('') || '<span class="text-muted">无</span>'}
                             </div>
                         </div>
                         <div class="col-md-6 mb-2">
                             <div class="d-flex flex-wrap">
-                                <small class="text-muted me-2">关键词:</small>
-                                ${creative.keywords.slice(0, 4).map(keyword => 
-                                    `<span class="badge bg-secondary me-1">${keyword}</span>`
-                                ).join('')}
+                                <small class="text-muted me-2">关键提示:</small>
+                                ${creative.key_notes ? `<span class="badge bg-warning text-dark">${creative.key_notes}</span>` : ''}
                             </div>
                         </div>
                     </div>
+                    ${creative.keywords ? `
                     <div class="d-flex flex-wrap mt-2">
-                        <small class="text-muted me-2">视觉提示:</small>
-                        ${creative.visual_hints.slice(0, 3).map(hint => 
-                            `<span class="badge bg-info text-dark me-1">${hint}</span>`
+                        <small class="text-muted me-2">关键词:</small>
+                        ${creative.keywords.slice(0, 4).map(keyword => 
+                            `<span class="badge bg-secondary me-1">${keyword}</span>`
                         ).join('')}
                     </div>
+                    ` : ''}
                 </div>
                 <div class="ms-3 creative-actions">
                     <button class="btn btn-outline-primary btn-sm mb-2" 
@@ -839,7 +843,8 @@ function renderCreatives() {
                 </div>
             </div>
         </div>
-    `).join('');
+        `;
+    }).join('');
     
     container.innerHTML = creativesHtml;
     
@@ -894,13 +899,25 @@ function showCreativeDetail(index) {
         <div class="row">
             <div class="col-12">
                 <div class="mb-3">
-                    <h6>创意标题</h6>
-                    <div class="bg-light p-2 rounded">${creative.title}</div>
+                    <h6>核心概念</h6>
+                    <div class="bg-light p-2 rounded">${creative.core_concept || creative.title || '暂无概念'}</div>
                 </div>
                 <div class="mb-3">
-                    <h6>创意内容</h6>
-                    <div class="bg-light p-3 rounded">${creative.content}</div>
+                    <h6>画面描述</h6>
+                    <div class="bg-light p-3 rounded">${creative.scene_description || creative.content || '暂无描述'}</div>
                 </div>
+                ${creative.camera_lighting ? `
+                <div class="mb-3">
+                    <h6>镜头/光线处理</h6>
+                    <div class="bg-light p-3 rounded">${creative.camera_lighting}</div>
+                </div>
+                ` : ''}
+                ${creative.color_props ? `
+                <div class="mb-3">
+                    <h6>色彩与道具细节</h6>
+                    <div class="bg-light p-3 rounded">${creative.color_props}</div>
+                </div>
+                ` : ''}
             </div>
         </div>
         <div class="row">
@@ -908,11 +925,12 @@ function showCreativeDetail(index) {
                 <div class="mb-3">
                     <h6>使用维度</h6>
                     <div class="d-flex flex-wrap">
-                        ${creative.chosen_dimensions.map(dim => `
+                        ${(creative.chosen_dimensions || []).map(dim => `
                             <span class="badge bg-primary me-1 mb-1">${dim}</span>
-                        `).join('')}
+                        `).join('') || '<span class="text-muted">无选定维度</span>'}
                     </div>
                 </div>
+                ${creative.keywords ? `
                 <div class="mb-3">
                     <h6>关键词</h6>
                     <div class="d-flex flex-wrap">
@@ -921,8 +939,19 @@ function showCreativeDetail(index) {
                         `).join('')}
                     </div>
                 </div>
+                ` : ''}
             </div>
             <div class="col-md-6">
+                ${creative.key_notes ? `
+                <div class="mb-3">
+                    <h6>关键注意事项</h6>
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        ${creative.key_notes}
+                    </div>
+                </div>
+                ` : ''}
+                ${creative.visual_hints && creative.visual_hints.length > 0 ? `
                 <div class="mb-3">
                     <h6>视觉提示</h6>
                     <div class="d-flex flex-wrap">
@@ -931,8 +960,10 @@ function showCreativeDetail(index) {
                         `).join('')}
                     </div>
                 </div>
+                ` : ''}
+                ${creative.dimension_details ? `
                 <div class="mb-3">
-                    <h6>详细信息</h6>
+                    <h6>维度详细信息</h6>
                     <div class="small text-muted">
                         ${Object.entries(creative.dimension_details).map(([dimName, dimInfo]) => `
                             <div class="mb-2">
@@ -942,6 +973,7 @@ function showCreativeDetail(index) {
                         `).join('')}
                     </div>
                 </div>
+                ` : ''}
             </div>
         </div>
     `;
@@ -998,3 +1030,68 @@ async function saveSelectedCreatives() {
         showMessage('保存创意失败: ' + error.message, 'danger');
     }
 }
+
+// 更新创意数量选项（根据选择的模型）
+function updateCreativeCountOptions() {
+    const creativeCountSelect = document.getElementById('creative-count');
+    
+    if (!creativeCountSelect) {
+        console.error('❌ 找不到 creative-count 元素');
+        return;
+    }
+    
+    const selectedModel = document.querySelector('input[name="ai-model"]:checked')?.value || 'gpt-5-nano';
+    
+    // 清空现有选项
+    creativeCountSelect.innerHTML = '';
+    
+    // 根据模型添加选项
+    let options = [];
+    if (selectedModel === 'gpt-5-mini') {
+        // GPT-5-mini: 1, 2, 3个选项
+        options = [
+            { value: 1, text: '1个', selected: false },
+            { value: 2, text: '2个', selected: true },  // 默认选择2个
+            { value: 3, text: '3个', selected: false }
+        ];
+    } else if (selectedModel === 'gpt-5-nano') {
+        // GPT-5-nano: 1, 3, 5, 10个选项
+        options = [
+            { value: 1, text: '1个', selected: false },
+            { value: 3, text: '3个', selected: false },
+            { value: 5, text: '5个', selected: true },  // 默认选择5个
+            { value: 10, text: '10个', selected: false }
+        ];
+    }
+    
+    // 添加选项到select元素
+    options.forEach(opt => {
+        const option = document.createElement('option');
+        option.value = opt.value;
+        option.textContent = opt.text;
+        if (opt.selected) option.selected = true;
+        creativeCountSelect.appendChild(option);
+    });
+    
+    // 更新成本提示（可选）
+    updateCostHint(selectedModel, creativeCountSelect.value);
+}
+
+// 更新成本提示（可选功能）
+function updateCostHint(model, count) {
+    const costHint = document.getElementById('cost-hint');
+    if (costHint) {
+        const costs = {
+            'gpt-5-nano': { min: 0.01, max: 0.02 },  // 每个创意的估计成本
+            'gpt-5-mini': { min: 0.05, max: 0.10 }   // 每个创意的估计成本
+        };
+        
+        const modelCost = costs[model] || costs['gpt-5-nano'];
+        const estimatedMin = (modelCost.min * count).toFixed(2);
+        const estimatedMax = (modelCost.max * count).toFixed(2);
+        
+        costHint.textContent = `预计成本约$${estimatedMin}-${estimatedMax}`;
+    }
+}
+
+// 这个函数已经在主DOMContentLoaded中处理了，不需要重复

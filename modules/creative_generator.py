@@ -1,8 +1,9 @@
 import random
 import json
 from datetime import datetime
-from typing import List, Dict, Any, Set
+from typing import List, Dict, Any, Set, Optional
 from models import Creative, CreativeDimension, CreativeOption, db
+from modules.openai_service import OpenAIService
 
 class CreativeGenerator:
     """
@@ -13,6 +14,8 @@ class CreativeGenerator:
     def __init__(self):
         # 初始化时检查并创建默认维度配置
         self._ensure_default_dimensions()
+        # 初始化OpenAI服务
+        self.openai_service = OpenAIService()
     
     def _ensure_default_dimensions(self):
         """确保数据库中有默认的维度配置"""
@@ -358,29 +361,297 @@ class CreativeGenerator:
         dimensions = CreativeDimension.query.filter_by(is_active=True).order_by(CreativeDimension.sort_order).all()
         return [dim.to_dict() for dim in dimensions]
     
-    def generate_creatives(self, selected_dimensions: Dict[str, List[int]], count: int = 20) -> List[Dict[str, Any]]:
+    def generate_creatives(self, selected_dimensions: Dict[str, List[int]], count: int = 20, 
+                         user_idea: Optional[str] = None, custom_inputs: Optional[Dict[str, str]] = None,
+                         ai_model: str = 'gpt-5-nano') -> List[Dict[str, Any]]:
         """
-        根据选中的维度生成创意
+        根据选中的维度生成创意，支持用户想法和自定义输入
         selected_dimensions: {dimension_name: [option_id1, option_id2, ...]}
+        count: 生成创意数量
+        user_idea: 用户输入的创意想法
+        custom_inputs: 自定义维度内容
+        ai_model: AI模型选择 (gpt-5-nano|gpt-5-mini)
         """
-        creatives = []
         generation_params = {
             'selected_dimensions': selected_dimensions,
             'count': count,
+            'user_idea': user_idea,
+            'custom_inputs': custom_inputs,
+            'ai_model': ai_model,
             'timestamp': datetime.now().isoformat()
         }
         
-        # 获取选中的选项
+        # 如果有用户输入或自定义内容，使用AI生成
+        if user_idea or custom_inputs or selected_dimensions:
+            try:
+                creatives = self._generate_with_ai(
+                    selected_dimensions, count, user_idea, custom_inputs, generation_params, ai_model
+                )
+            except Exception as e:
+                # AI生成失败时，回退到模板生成（但会使用用户输入）
+                print(f"AI生成失败，回退到模板生成: {e}")
+                creatives = self._generate_with_templates(
+                    selected_dimensions, count, user_idea, custom_inputs, generation_params
+                )
+        else:
+            # 没有任何输入时，使用模板生成
+            creatives = self._generate_with_templates(
+                selected_dimensions, count, user_idea, custom_inputs, generation_params
+            )
+        
+        return creatives
+    
+    def generate_simple_creatives(self, template: str, count: int, game_background: str, ai_model: str = 'gpt-5-nano') -> List[Dict[str, Any]]:
+        """
+        简化的创意生成方法，使用固定模板
+        """
+        print(f"🎨 开始简化创意生成...")
+        print(f"   模板: {template[:100]}...")
+        print(f"   游戏背景: {game_background}")
+        print(f"   数量: {count}")
+        print(f"   模型: {ai_model}")
+        
+        generation_params = {
+            'template': template,
+            'count': count,
+            'game_background': game_background,
+            'ai_model': ai_model,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        try:
+            # 构建简化的AI请求
+            prompt_data = {
+                "user_input": {
+                    "idea": game_background,
+                    "custom_inputs": {
+                        "target_region": "越南",
+                    }
+                },
+                "selected_dimensions": {},  # 不使用维度
+                "requirements": {
+                    "count": count,
+                    "language": "zh-CN"
+                }
+            }
+            
+            # 调用OpenAI服务
+            response = self.openai_service.generate_creative_content(
+                prompt_data=prompt_data,
+                model=ai_model,
+                max_tokens=4000
+            )
+            
+            # 解析AI返回的创意数据
+            creatives = self._parse_ai_response(response, generation_params)
+            
+            print(f"✅ 简化创意生成成功，生成了{len(creatives)}个创意")
+            return creatives
+            
+        except Exception as e:
+            print(f"❌ AI生成失败，使用模板生成: {e}")
+            # 失败时生成简单的创意结构
+            creatives = []
+            for i in range(count):
+                creative = {
+                    'index': i + 1,
+                    'title': f'{game_background}创意 #{i+1}',
+                    'content': f'基于{game_background}的广告创意描述',
+                    'core_concept': f'{game_background}的核心概念 #{i+1}',
+                    'scene_description': f'基于{game_background}的画面描述，适合在越南市场推广',
+                    'camera_lighting': '标准镜头和光线设置',
+                    'color_props': '符合主题的色彩和道具配置',
+                    'key_notes': '画面中严禁出现任何文字、Logo、字幕与标识',
+                    'chosen_dimensions': [],
+                    'keywords': [],
+                    'visual_hints': [],
+                    'ai_generated': False,
+                    'generation_params': generation_params
+                }
+                creatives.append(creative)
+            
+            return creatives
+    
+    def _generate_with_ai(self, selected_dimensions: Dict[str, List[int]], count: int, 
+                         user_idea: Optional[str], custom_inputs: Optional[Dict[str, str]],
+                         generation_params: Dict[str, Any], ai_model: str = 'gpt-5-nano') -> List[Dict[str, Any]]:
+        """使用OpenAI生成创意"""
+        # 构建JSON prompt
+        prompt_data = self._build_ai_prompt(selected_dimensions, count, user_idea, custom_inputs)
+        
+        # 调用OpenAI服务，使用用户选择的模型
+        response = self.openai_service.generate_creative_content(
+            prompt_data=prompt_data,
+            model=ai_model,
+            max_tokens=4000
+        )
+        
+        # 解析AI返回的创意数据
+        creatives = self._parse_ai_response(response, generation_params)
+        
+        return creatives
+    
+    def _build_ai_prompt(self, selected_dimensions: Dict[str, List[int]], count: int,
+                        user_idea: Optional[str], custom_inputs: Optional[Dict[str, str]]) -> Dict[str, Any]:
+        """构建发送给AI的JSON prompt"""
+        # 获取选中的选项详情
         selected_options = self._get_selected_options(selected_dimensions)
         
-        # 生成创意
+        # 构建维度数据
+        dimensions_data = {}
+        for dimension_name, options in selected_options.items():
+            dimensions_data[dimension_name] = [
+                {
+                    "name": option.name,
+                    "description": option.description,
+                    "keywords": json.loads(option.keywords) if option.keywords else [],
+                    "visual_hints": json.loads(option.visual_hints) if option.visual_hints else []
+                }
+                for option in options
+            ]
+        
+        prompt_data = {
+            "task": "creative_advertising_generation",
+            "user_input": {
+                "idea": user_idea or "",
+                "custom_inputs": custom_inputs or {}
+            },
+            "selected_dimensions": dimensions_data,
+            "requirements": {
+                "count": count,
+                "language": "zh-CN",
+                "target_audience": "游戏玩家",
+                "content_type": "广告创意",
+                "output_format": "structured_json"
+            },
+            "instructions": {
+                "combination_strategy": "intelligent_mix",
+                "creativity_level": "high",
+                "relevance_priority": "user_input_first",
+                "diversity": "ensure_variety"
+            }
+        }
+        
+        return prompt_data
+    
+    def _parse_ai_response(self, ai_response: str, generation_params: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """解析AI返回的创意数据"""
+        print(f"🔍 开始解析AI响应...")
+        print(f"   响应类型: {type(ai_response)}")
+        print(f"   响应长度: {len(ai_response) if ai_response else 0}字符")
+        print(f"   响应预览: {ai_response[:200] if ai_response else 'None'}...")
+        
+        try:
+            # 尝试解析JSON响应
+            if isinstance(ai_response, str):
+                response_data = json.loads(ai_response)
+            else:
+                response_data = ai_response
+            
+            print(f"✅ JSON解析成功")
+            print(f"   数据结构: {list(response_data.keys()) if isinstance(response_data, dict) else type(response_data)}")
+                
+            creatives = []
+            creative_list = response_data.get('creatives', [])
+            print(f"   创意列表长度: {len(creative_list)}")
+            
+            for i, creative_data in enumerate(creative_list):
+                print(f"   处理创意#{i+1}: {list(creative_data.keys()) if isinstance(creative_data, dict) else type(creative_data)}")
+                
+                # 处理新的JSON格式（core_concept, scene_description等）
+                if 'core_concept' in creative_data:
+                    title = creative_data.get('core_concept', f'创意 #{i+1}')
+                    content = creative_data.get('scene_description', '')
+                else:
+                    title = creative_data.get('title', f'创意 #{i+1}')
+                    content = creative_data.get('content', '')
+                
+                creative = {
+                    'index': i + 1,
+                    'title': title,
+                    'content': content,
+                    'core_concept': creative_data.get('core_concept', ''),
+                    'scene_description': creative_data.get('scene_description', ''),
+                    'camera_lighting': creative_data.get('camera_lighting', ''),
+                    'color_props': creative_data.get('color_props', ''),
+                    'key_notes': creative_data.get('key_notes', ''),
+                    'chosen_dimensions': creative_data.get('chosen_dimensions', []),
+                    'dimension_details': creative_data.get('dimension_details', {}),
+                    'keywords': creative_data.get('keywords', []),
+                    'visual_hints': creative_data.get('visual_hints', []),
+                    'ai_generated': True,
+                    'generation_params': generation_params
+                }
+                creatives.append(creative)
+                
+            print(f"✅ 成功解析{len(creatives)}个创意")
+            return creatives
+            
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            print(f"❌ 解析AI响应失败: {e}")
+            print(f"   尝试使用备用解析方法...")
+            # 如果解析失败，创建基础创意结构
+            return self._create_fallback_creatives(ai_response, generation_params)
+    
+    def _create_fallback_creatives(self, ai_response: str, generation_params: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """当AI响应解析失败时，创建基础创意结构"""
+        count = generation_params.get('count', 20)
+        creatives = []
+        
+        # 如果AI返回的是纯文本，尝试分割成多个创意
+        content_parts = ai_response.split('\n\n') if isinstance(ai_response, str) else [str(ai_response)]
+        
+        for i in range(min(count, len(content_parts))):
+            content = content_parts[i].strip()
+            if content:
+                creative = {
+                    'index': i + 1,
+                    'title': content[:30] + '...' if len(content) > 30 else content,
+                    'content': content,
+                    'chosen_dimensions': [],
+                    'dimension_details': {},
+                    'keywords': [],
+                    'visual_hints': [],
+                    'ai_generated': True,
+                    'fallback_generated': True,
+                    'generation_params': generation_params
+                }
+                creatives.append(creative)
+        
+        # 如果还不够数量，填充基础创意
+        while len(creatives) < count:
+            i = len(creatives)
+            creative = {
+                'index': i + 1,
+                'title': f'AI生成创意 #{i+1}',
+                'content': '基于您的输入生成的创意内容',
+                'chosen_dimensions': [],
+                'dimension_details': {},
+                'keywords': [],
+                'visual_hints': [],
+                'ai_generated': True,
+                'fallback_generated': True,
+                'generation_params': generation_params
+            }
+            creatives.append(creative)
+            
+        return creatives
+    
+    def _generate_with_templates(self, selected_dimensions: Dict[str, List[int]], count: int,
+                               user_idea: Optional[str], custom_inputs: Optional[Dict[str, str]],
+                               generation_params: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """使用模板生成创意（保留原有逻辑作为回退方案）"""
+        creatives = []
+        selected_options = self._get_selected_options(selected_dimensions)
+        
         for i in range(count):
-            creative = self._generate_single_creative(selected_options)
+            creative = self._generate_single_creative(selected_options, user_idea, custom_inputs)
             creative['generation_params'] = generation_params
             creative['index'] = i + 1
             creative['selected_dimensions'] = selected_dimensions
+            creative['ai_generated'] = False
             creatives.append(creative)
-        
+            
         return creatives
     
     def _get_selected_options(self, selected_dimensions: Dict[str, List[int]]) -> Dict[str, List[CreativeOption]]:
@@ -397,7 +668,9 @@ class CreativeGenerator:
         
         return result
     
-    def _generate_single_creative(self, selected_options: Dict[str, List[CreativeOption]]) -> Dict[str, Any]:
+    def _generate_single_creative(self, selected_options: Dict[str, List[CreativeOption]], 
+                                 user_idea: Optional[str] = None, 
+                                 custom_inputs: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """生成单个创意"""
         # 随机选择维度组合
         chosen_dimensions = random.sample(list(selected_options.keys()), 
@@ -414,7 +687,7 @@ class CreativeGenerator:
                 dimension_details[dimension_name] = option.to_dict()
         
         # 构建创意内容
-        content = self._build_creative_content(chosen_options)
+        content = self._build_creative_content(chosen_options, user_idea, custom_inputs)
         title = self._build_creative_title(content, chosen_options)
         
         return {
@@ -426,9 +699,38 @@ class CreativeGenerator:
             'visual_hints': self._extract_visual_hints(chosen_options)
         }
     
-    def _build_creative_content(self, options: List[CreativeOption]) -> str:
-        """构建创意内容"""
-        # 选择一个主模板
+    def _build_creative_content(self, options: List[CreativeOption], 
+                              user_idea: Optional[str] = None, 
+                              custom_inputs: Optional[Dict[str, str]] = None) -> str:
+        """构建创意内容，优先使用用户输入"""
+        # 如果有用户想法，优先基于用户想法构建内容
+        if user_idea and user_idea.strip():
+            base_content = user_idea.strip()
+            option_names = [opt.name for opt in options] if options else []
+            
+            if option_names:
+                # 结合选项名称增强用户想法
+                content = f"{base_content}，融合{'/'.join(option_names[:2])}风格，带来独特体验！"
+            else:
+                content = f"{base_content}，精心设计的创意方案！"
+                
+            return content
+        
+        # 如果有自定义输入，使用自定义内容
+        if custom_inputs:
+            custom_content = " ".join(custom_inputs.values()).strip()
+            if custom_content:
+                option_names = [opt.name for opt in options] if options else []
+                if option_names:
+                    content = f"{custom_content}，结合{'/'.join(option_names[:2])}的创意元素！"
+                else:
+                    content = f"{custom_content}，个性化创意表达！"
+                return content
+        
+        # 使用原有的模板逻辑作为回退
+        if not options:
+            return "基于您的选择生成的精彩创意内容！"
+            
         main_option = random.choice(options)
         templates = json.loads(main_option.templates) if main_option.templates else []
         
@@ -440,7 +742,7 @@ class CreativeGenerator:
                 option_keywords = json.loads(option.keywords) if option.keywords else []
                 keywords.update({
                     'game': '这款游戏',
-                    'achievement': random.choice(['王者荣耀', '传奇成就', '巅峰体验']),
+                    'achievement': random.choice(['传奇成就', '巅峰体验', '荣耀时刻']),
                     'call_to_action': random.choice(['立即体验', '马上下载', '加入战斗']),
                     'feature': random.choice(option_keywords[:2]) if option_keywords else '精彩内容',
                     'world': random.choice(['游戏世界', '奇幻大陆', '冒险之地']),
